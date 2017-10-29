@@ -4,6 +4,8 @@ import json
 import requests
 import os.path
 import time
+from threading import Event, Thread
+
 
 URL_MARKET = 'https://api.cryptowat.ch/markets/'
 
@@ -21,6 +23,14 @@ else:
     with open('data/lastState.json', 'w') as fl:
         json.dump(initialData, fl)
 
+def updateThread(interval, func, *args):
+    stopped = Event()
+    def loop():
+        while not stopped.wait(interval): # the first call is in `interval` secs
+            func(*args)
+    Thread(target=loop).start()
+    return stopped.set
+
 
 class BarApp(rumps.App):
 
@@ -33,13 +43,14 @@ class BarApp(rumps.App):
             coin = coinData.get('coin')
             market = coinData.get('market')
             pair = coinData.get('pair')
-
+            print coin
             try:
                 response = urlopen(URL_MARKET + market +'/'+pair+'/'+'summary').read()
                 coinInfo = json.loads(response)
                 coinPrice = coinInfo.get('result').get('price').get('last')
                 coinChange = coinInfo.get('result').get('price').get('change').get('percentage')
 
+                # to set color changing text later
                 if (coinChange > 0.5):
                     titleString += "{} {} ".format(coin, coinPrice.__str__())
                 elif (coinChange < -0.5):
@@ -55,8 +66,5 @@ class BarApp(rumps.App):
 if __name__ == "__main__":
     app = BarApp('title')
     app.update()
+    updateThread(10, app.update)
     app.run()
-
-while true:
-    app.update()
-    time.sleep(10)
