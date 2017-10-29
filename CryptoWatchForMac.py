@@ -3,16 +3,20 @@ from urllib2 import Request, urlopen, URLError
 import json
 import requests
 import os.path
+import os
 import time
 from threading import Event, Thread
 
-
 URL_MARKET = 'https://api.cryptowat.ch/markets/'
+
+
+this_dir, this_filename = os.path.split(__file__)
+DATA_PATH = os.path.join(this_dir, "data", "lastState.json")
 
 # check if data file with users preference exists, otherwise create one with
 # btcusd and ethusd set as preferences
-if os.path.isfile('data/lastState.json'):
-    with open('data/lastState.json', 'r') as fl:
+if os.path.isfile(DATA_PATH):
+    with open(DATA_PATH, 'r') as fl:
         initialData = json.load(fl)
 
 else:
@@ -20,7 +24,7 @@ else:
     {'coin' : 'BTC', 'pair' : 'btcusd', 'market' : 'gdax'},
     {'coin' : 'ETH', 'pair' : 'ethusd', 'market' : 'gdax'}
     ] }
-    with open('data/lastState.json', 'w') as fl:
+    with open(DATA_PATH, 'w') as fl:
         json.dump(initialData, fl)
 
 def updateThread(interval, func, *args):
@@ -43,7 +47,7 @@ class BarApp(rumps.App):
             coin = coinData.get('coin')
             market = coinData.get('market')
             pair = coinData.get('pair')
-            print coin
+
             try:
                 response = urlopen(URL_MARKET + market +'/'+pair+'/'+'summary').read()
                 coinInfo = json.loads(response)

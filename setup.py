@@ -2,7 +2,7 @@ from setuptools import setup
 
 APP = ['CryptoWatchForMac.py']
 APP_NAME = "CryptoWatchForMac"
-DATA_FILES = []
+DATA_FILES = [('', ['data'])]
 OPTIONS = {
     'argv_emulation': True,
     'iconfile': 'app.icns',
