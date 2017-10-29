@@ -14,7 +14,7 @@ OPTIONS = {
         'CFBundleIdentifier': "com.danishdua.osx.CryptoWatchForMac",
         'CFBundleVersion': "0.1",
         'CFBundleShortVersionString': "0.1",
-        'NSHumanReadableCopyright': "Copyright \u00a9, Danish Dua"
+        'NSHumanReadableCopyright': u"Copyright \u00a9, Danish Dua"
     },
     'packages': ['rumps'],
 }
