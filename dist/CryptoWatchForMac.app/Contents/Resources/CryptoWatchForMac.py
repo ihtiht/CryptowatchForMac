@@ -7,18 +7,19 @@ import os
 import time
 from threading import Event, Thread
 
-URL_MARKET = 'https://api.cryptowat.ch/markets/'
+# Cryptowatch API links
+URL_MARKET = 'https://api.cryptowat.ch/markets'
 
-
+# path for lastState.json file in app's contents
 this_dir, this_filename = os.path.split(__file__)
 DATA_PATH = os.path.join(this_dir, "data", "lastState.json")
 
-# check if data file with users preference exists, otherwise create one with
-# btcusd and ethusd set as preferences
+# data_file included with build
 if os.path.isfile(DATA_PATH):
     with open(DATA_PATH, 'r') as fl:
         initialData = json.load(fl)
 
+# if file not found, create a file in data path (if the user doesn't run build)
 else:
     initialData = { 'results': [
     {'coin' : 'BTC', 'pair' : 'btcusd', 'market' : 'gdax'},
@@ -27,6 +28,7 @@ else:
     with open(DATA_PATH, 'w') as fl:
         json.dump(initialData, fl)
 
+# thread to run a function after every interval
 def updateThread(interval, func, *args):
     stopped = Event()
     def loop():
@@ -38,10 +40,12 @@ def updateThread(interval, func, *args):
 
 class BarApp(rumps.App):
 
-    def update(self):
+    # update the titleString with new price
+    def mainUpdate(self):
 
         titleString = ""
 
+        # check every coin in initialData
         for coinData in initialData.get('results'):
 
             coin = coinData.get('coin')
@@ -49,12 +53,13 @@ class BarApp(rumps.App):
             pair = coinData.get('pair')
 
             try:
-                response = urlopen(URL_MARKET + market +'/'+pair+'/'+'summary').read()
+                response = urlopen(URL_MARKET +'/'+ market +'/'+pair+'/'+'summary').read()
                 coinInfo = json.loads(response)
                 coinPrice = coinInfo.get('result').get('price').get('last')
                 coinChange = coinInfo.get('result').get('price').get('change').get('percentage')
 
-                # to set color changing text later
+                # to set color changing text later, green if price is greater
+                # than 24h old price by 0.5%, red if lower than old price by -0.5%
                 if (coinChange > 0.5):
                     titleString += "{} {} ".format(coin, coinPrice.__str__())
                 elif (coinChange < -0.5):
@@ -67,8 +72,75 @@ class BarApp(rumps.App):
 
         self.title = titleString
 
+    # update the available markets
+    def menuUpdate(self):
+
+        # will store markets and corresponding pairs for market
+        marketDictionary = {}
+
+        try:
+            # get all markets and pairs from the API
+            respone = urlopen(URL_MARKET).read()
+            marketInfo = json.loads(respone)
+            marketInfo = marketInfo.get('result')
+
+            # iterate over the JSON data and get exchange and pair
+            for market in marketInfo:
+                marketExchange = market.get('exchange')
+                marketPair = market.get('pair')
+
+                # if the exchange is not already in the dictionary, add
+                # it and set value to an empty array
+                if not marketDictionary.has_key(marketExchange.__str__()):
+                    marketDictionary[marketExchange.__str__()] = []
+
+                # add the pair in the array
+                pairArray = marketDictionary.get(marketExchange.__str__())
+                pairArray.append(marketPair.__str__())
+
+
+        except URLError, e:
+            print 'Error code:', e
+
+        # menuArray stores the final arrays, subMenuArray
+        # and subPairArray are temporary arrays to set the menu items
+        menuArray = []
+        subMenuArray = []
+        subPairArray = []
+
+        # iterate over the exchanges and add an exchange menu item
+        for key in marketDictionary.keys():
+            subMenuArray.append(rumps.MenuItem(key))
+
+            # iterate over pairs and add pairs in exchange sub-menu
+            for pair in marketDictionary.get(key):
+                subPairArray.append(rumps.MenuItem(pair))
+
+            # add the exchange (key) and corresponding sub-menu
+            # to the main menu
+            subMenuArray.append(subPairArray)
+            menuArray.append(subMenuArray)
+
+            # clear the temporary arrays for next iteration
+            subMenuArray = []
+            subPairArray = []
+
+        self.menu = menuArray
+
+
+
 if __name__ == "__main__":
+
+    # app setup and initialization
     app = BarApp('title')
-    app.update()
-    updateThread(10, app.update)
+    app.mainUpdate()
+    app.menuUpdate()
+
+    # run update thread for titleString update (every 10 sec)
+    # and menuUpdate (every hour). The menu doesn't need to be updated
+    # that often since markets and pairs are added/removed very infrequently
+    updateThread(10, app.mainUpdate)
+    updateThread(3600, app.menuUpdate)
+
+    # start app with update threads running in background
     app.run()
