@@ -2,6 +2,7 @@ import rumps
 from urllib2 import Request, urlopen, URLError
 import json
 import requests
+import re
 import os.path
 import os
 import time
@@ -82,38 +83,52 @@ class BarApp(rumps.App):
             # get all markets and pairs from the API
             respone = urlopen(URL_MARKET).read()
             marketInfo = json.loads(respone)
-            marketInfo = marketInfo.get('result')
+
+            # initalize lastExchange for first run
+            lastExchange = (marketInfo.get('result'))[0].get('exchange').__str__()
 
             # iterate over the JSON data and get exchange and pair
-            for market in marketInfo:
+            for market in marketInfo.get('result'):
                 marketExchange = market.get('exchange')
                 marketPair = market.get('pair')
 
                 # if the exchange is not already in the dictionary, add
-                # it and set value to an empty array
+                # it and set value to an empty array; sort last exchange's pairs
                 if not marketDictionary.has_key(marketExchange.__str__()):
                     marketDictionary[marketExchange.__str__()] = []
+                    marketDictionary.get(lastExchange).sort()
 
                 # add the pair in the array
                 pairArray = marketDictionary.get(marketExchange.__str__())
                 pairArray.append(marketPair.__str__())
 
+                # store last exchange to sort its pairs when we move to a
+                # different exchange
+                lastExchange = marketExchange.__str__()
+
+            marketDictionary.get(lastExchange).sort()
 
         except URLError, e:
             print 'Error code:', e
 
-        # menuArray stores the final arrays, subMenuArray
-        # and subPairArray are temporary arrays to set the menu items
+        # sorted market List
+        marketKeyList = marketDictionary.keys()
+        marketKeyList.sort()
+
+        # menuArray stores the final arrays,
         menuArray = []
-        subMenuArray = []
-        subPairArray = []
 
         # iterate over the exchanges and add an exchange menu item
-        for key in marketDictionary.keys():
-            subMenuArray.append(rumps.MenuItem(key))
+        for key in marketKeyList:
+            # initalize temporary arrays to store the Menu Items
+            subMenuArray = []
+            subPairArray = []
+
+            subMenuArray.append(rumps.MenuItem(key.title()))
 
             # iterate over pairs and add pairs in exchange sub-menu
             for pair in marketDictionary.get(key):
+                pair = pair.upper()
                 subPairArray.append(rumps.MenuItem(pair))
 
             # add the exchange (key) and corresponding sub-menu
@@ -121,12 +136,7 @@ class BarApp(rumps.App):
             subMenuArray.append(subPairArray)
             menuArray.append(subMenuArray)
 
-            # clear the temporary arrays for next iteration
-            subMenuArray = []
-            subPairArray = []
-
         self.menu = menuArray
-
 
 
 if __name__ == "__main__":
