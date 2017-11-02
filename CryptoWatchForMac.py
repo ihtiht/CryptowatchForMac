@@ -136,21 +136,34 @@ class BarApp(rumps.App):
             subMenuArray.append(subPairArray)
             menuArray.append(subMenuArray)
 
-        self.menu = menuArray
+        # check for current values and update list accordingly
+        if self.menu.has_key('Markets'):
+            del self.menu['Markets']
+
+        if self.menu.has_key('Quit'):
+            self.menu.insert_before('Quit',rumps.MenuItem('Markets'))
+            self.menu.insert_after('Markets', None)
+            self.menu['Markets'].update(menuArray)
+        else:
+            self.menu.add(rumps.MenuItem('Markets'))
+            self.menu.insert_after('Markets', None)
+            self.menu['Markets'].update(menuArray)
 
 
 if __name__ == "__main__":
 
     # app setup and initialization
-    app = BarApp('title')
-    app.mainUpdate()
+    menuArray = []
+
+    app = BarApp('Cryptowatch')
     app.menuUpdate()
+    app.mainUpdate()
 
     # run update thread for titleString update (every 10 sec)
     # and menuUpdate (every hour). The menu doesn't need to be updated
     # that often since markets and pairs are added/removed very infrequently
     updateThread(10, app.mainUpdate)
-    updateThread(3600, app.menuUpdate)
+    updateThread(15, app.menuUpdate)
 
     # start app with update threads running in background
     app.run()
