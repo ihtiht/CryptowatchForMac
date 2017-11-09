@@ -5,7 +5,7 @@ APP_NAME = "Cryptowatch For Mac"
 DATA_FILES = [('', ['data'])]
 OPTIONS = {
     'argv_emulation': True,
-    'iconfile': 'app.icns',
+    'iconfile': 'data/app.icns',
     'plist': {
         'LSUIElement': True,
         'CFBundleName': APP_NAME,
