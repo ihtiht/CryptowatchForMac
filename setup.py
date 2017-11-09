@@ -1,7 +1,7 @@
 from setuptools import setup
 
-APP = ['CryptoWatchForMac.py']
-APP_NAME = "CryptoWatchForMac"
+APP = ['CryptowatchForMac.py']
+APP_NAME = "Cryptowatch For Mac"
 DATA_FILES = [('', ['data'])]
 OPTIONS = {
     'argv_emulation': True,
@@ -11,10 +11,10 @@ OPTIONS = {
         'CFBundleName': APP_NAME,
         'CFBundleDisplayName': APP_NAME,
         'CFBundleGetInfoString': "Cryptowatch For MacOS info",
-        'CFBundleIdentifier': "com.danishdua.osx.CryptoWatchForMac",
-        'CFBundleVersion': "0.1",
-        'CFBundleShortVersionString': "0.1",
-        'NSHumanReadableCopyright': u"Copyright \u00a9, Danish Dua"
+        'CFBundleIdentifier': "com.danishdua.osx.CryptowatchForMac",
+        'CFBundleVersion': "0.2",
+        'CFBundleShortVersionString': "0.2",
+        'NSHumanReadableCopyright': u"Copyright \u00a9, 2017, Danish Dua"
     },
     'packages': ['rumps'],
 }

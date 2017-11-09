@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # and menuUpdate (every hour). The menu doesn't need to be updated
     # that often since markets and pairs are added/removed very infrequently
     updateThread(10, app.mainUpdate)
-    updateThread(15, app.menuUpdate)
+    updateThread(3600, app.menuUpdate)
 
     # start app with update threads running in background
     app.run()
