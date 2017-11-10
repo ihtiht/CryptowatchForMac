@@ -1,11 +1,11 @@
 import rumps
-from urllib2 import Request, urlopen, URLError
 import json
-import requests
 import re
 import os.path
 import os
 import time
+import requests
+from urllib2 import Request, urlopen, URLError
 from threading import Event, Thread
 
 # Cryptowatch API links
@@ -18,16 +18,17 @@ DATA_PATH = os.path.join(this_dir, "data", "lastState.json")
 # data_file included with build
 if os.path.isfile(DATA_PATH):
     with open(DATA_PATH, 'r') as fl:
-        initialData = json.load(fl)
+        # mainData contains which coins are actually selected
+        mainData = json.load(fl)
 
 # if file not found, create a file in data path (if the user doesn't run build)
 else:
-    initialData = { 'results': [
+    mainData = { 'results': [
     {'coin' : 'BTC', 'pair' : 'btcusd', 'market' : 'gdax'},
     {'coin' : 'ETH', 'pair' : 'ethusd', 'market' : 'gdax'}
     ] }
     with open(DATA_PATH, 'w') as fl:
-        json.dump(initialData, fl)
+        json.dump(mainData, fl)
 
 # thread to run a function after every interval
 def updateThread(interval, func, *args):
@@ -46,8 +47,8 @@ class BarApp(rumps.App):
 
         titleString = ""
 
-        # check every coin in initialData
-        for coinData in initialData.get('results'):
+        # check every coin in mainData
+        for coinData in mainData.get('results'):
 
             coin = coinData.get('coin')
             market = coinData.get('market')
@@ -72,6 +73,7 @@ class BarApp(rumps.App):
                 print 'Error code:', e
 
         self.title = titleString
+
 
     # update the available markets
     def menuUpdate(self):
@@ -129,7 +131,7 @@ class BarApp(rumps.App):
             # iterate over pairs and add pairs in exchange sub-menu
             for pair in marketDictionary.get(key):
                 pair = pair.upper()
-                subPairArray.append(rumps.MenuItem(pair))
+                subPairArray.append(rumps.MenuItem(pair, callback = self.onPairClick))
 
             # add the exchange (key) and corresponding sub-menu
             # to the main menu
@@ -137,17 +139,39 @@ class BarApp(rumps.App):
             menuArray.append(subMenuArray)
 
         # check for current values and update list accordingly
-        if self.menu.has_key('Markets'):
-            del self.menu['Markets']
+        self.menu.clear()
+        self.menu.add(rumps.MenuItem('Markets'))
+        self.menu['Markets'].update(menuArray)
+        self.menu.insert_after('Markets', None)
+        self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
 
-        if self.menu.has_key('Quit'):
-            self.menu.insert_before('Quit',rumps.MenuItem('Markets'))
-            self.menu.insert_after('Markets', None)
-            self.menu['Markets'].update(menuArray)
+        # set states of selected coins on update as on
+        self.resetStates()
+
+    # if a pair item is clicked
+    def onPairClick(self, sender):
+        sender.state = not sender.state
+        if (sender.state == 0):
+            print sender.title
+            #self.removeData(sender)
         else:
-            self.menu.add(rumps.MenuItem('Markets'))
-            self.menu.insert_after('Markets', None)
-            self.menu['Markets'].update(menuArray)
+            print sender.title
+            #self.addData(sender)
+
+
+    # reset states on menu update
+    def resetStates(self):
+        # mainData is available across application
+        # check every coin in mainData
+        for coinData in mainData.get('results'):
+
+            coin = coinData.get('coin')
+            market = coinData.get('market')
+            pair = coinData.get('pair')
+
+            # get submenu pair of submenu exchange of submenu markets of main menu
+            # basically checking what coins are selcted and setting them to on
+            self.menu['Markets'][market.title()][pair.upper()].state = 1
 
 
 if __name__ == "__main__":
@@ -155,7 +179,7 @@ if __name__ == "__main__":
     # app setup and initialization
     menuArray = []
 
-    app = BarApp('Cryptowatch')
+    app = BarApp('Cryptowatch', quit_button = None)
     app.menuUpdate()
     app.mainUpdate()
 
