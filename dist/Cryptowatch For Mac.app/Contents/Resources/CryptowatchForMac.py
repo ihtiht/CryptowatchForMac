@@ -63,11 +63,11 @@ class BarApp(rumps.App):
                 # to set color changing text later, green if price is greater
                 # than 24h old price by 0.5%, red if lower than old price by -0.5%
                 if (coinChange > 0.5):
-                    titleString += "{} {} ".format(coin, coinPrice.__str__())
+                    titleString += "{} {} ".format(coin, coinPrice)
                 elif (coinChange < -0.5):
-                    titleString += "{} {} ".format(coin, coinPrice.__str__())
+                    titleString += "{} {} ".format(coin, coinPrice)
                 else:
-                    titleString += "{} {} ".format(coin, coinPrice.__str__())
+                    titleString += "{} {} ".format(coin, coinPrice)
 
             except URLError, e:
                 print 'Error code:', e
@@ -87,7 +87,7 @@ class BarApp(rumps.App):
             marketInfo = json.loads(respone)
 
             # initalize lastExchange for first run
-            lastExchange = (marketInfo.get('result'))[0].get('exchange').__str__()
+            lastExchange = (marketInfo.get('result'))[0].get('exchange')
 
             # iterate over the JSON data and get exchange and pair
             for market in marketInfo.get('result'):
@@ -96,17 +96,17 @@ class BarApp(rumps.App):
 
                 # if the exchange is not already in the dictionary, add
                 # it and set value to an empty array; sort last exchange's pairs
-                if not marketDictionary.has_key(marketExchange.__str__()):
-                    marketDictionary[marketExchange.__str__()] = []
+                if not marketDictionary.has_key(marketExchange):
+                    marketDictionary[marketExchange] = []
                     marketDictionary.get(lastExchange).sort()
 
                 # add the pair in the array
-                pairArray = marketDictionary.get(marketExchange.__str__())
-                pairArray.append(marketPair.__str__())
+                pairArray = marketDictionary.get(marketExchange)
+                pairArray.append(marketPair)
 
                 # store last exchange to sort its pairs when we move to a
                 # different exchange
-                lastExchange = marketExchange.__str__()
+                lastExchange = marketExchange
 
             marketDictionary.get(lastExchange).sort()
 
@@ -139,12 +139,7 @@ class BarApp(rumps.App):
             menuArray.append(subMenuArray)
 
         # check for current values and update list accordingly
-        self.menu.clear()
-        self.menu.add(rumps.MenuItem('Markets'))
-        self.menu['Markets'].update(menuArray)
-        self.menu.insert_after('Markets', None)
-        self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
-
+        self.setMenu(menuArray)
         # set states of selected coins on update as on
         self.resetStates()
 
@@ -152,11 +147,22 @@ class BarApp(rumps.App):
     def onPairClick(self, sender):
         sender.state = not sender.state
         if (sender.state == 0):
-            print sender.title
-            #self.removeData(sender)
+            self.removeData(sender.title)
         else:
-            print sender.title
-            #self.addData(sender)
+            self.addData(sender.title)
+
+
+    # menu setup on update
+    def setMenu(self, menuArray):
+        self.menu.clear()
+
+        # markets submenu setup
+        self.menu.add(rumps.MenuItem('Markets'))
+        self.menu['Markets'].update(menuArray)
+        self.menu.insert_after('Markets', None)
+
+        # to quit application
+        self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
 
 
     # reset states on menu update
@@ -172,6 +178,83 @@ class BarApp(rumps.App):
             # get submenu pair of submenu exchange of submenu markets of main menu
             # basically checking what coins are selcted and setting them to on
             self.menu['Markets'][market.title()][pair.upper()].state = 1
+            self.menu['Markets'][market.title()].state = -1
+
+
+    # remove an item from database
+    def removeData(self, title):
+        # iterate over main data and check if state for a pair with title
+        # sender is now 0
+        for i in xrange(len(mainData.get('results'))):
+
+            # get pair and check for title and state 0
+            pair = mainData.get('results')[i].get('pair')
+            market = mainData.get('results')[i].get('market')
+
+            # delete from mainData if conditions are met
+            if ((pair.upper() == title) and
+                (self.menu['Markets'][market.title()][pair.upper()].state == 0)):
+                del mainData.get('results')[i]
+                removedMarket = market.title()
+                break
+
+        self.mainUpdate()
+        # check if the market from which the pair was removed still has a
+        # pair to put a marker
+        self.menu['Markets'][removedMarket].state = 0
+
+        for pair in self.menu['Markets'][removedMarket].viewkeys():
+            if (self.menu['Markets'][removedMarket][pair].state == 1):
+                self.menu['Markets'][removedMarket].state = -1
+                break
+
+        # overwrite new data to file
+        with open(DATA_PATH, 'w') as fl:
+            json.dump(mainData, fl)
+
+
+    # add an item to database
+    def addData(self, title):
+        # iterate over markets and check if they have the pairs
+        # if true, check if the pair for the market is already in database
+        for market in self.menu['Markets'].viewkeys():
+            # to keep check if it was in data or not
+            check = False
+
+            if (self.menu['Markets'][market].has_key(title) and self.menu['Markets'][market][title].state == 1):
+
+                for i in xrange(len(mainData.get('results'))):
+                    # get pair and check if it's same
+                    checkPair = mainData.get('results')[i].get('pair')
+                    checkMarket = mainData.get('results')[i].get('market')
+
+                    if (checkMarket == market and checkPair == title):
+                        check = True
+                        break
+
+                # if no match was found
+                if (check == False):
+                    # to seperate the coin we want vs what it's compared against
+                    coinsArray = ['USD', 'USDT', 'BTC', 'ETH', 'JPY', 'KRW', '-',
+                        'AUD', 'EUR', 'CNY', 'RUR', 'GBP', 'CAD', 'ZAR', 'MEX',
+                        'XMR', 'SGD', 'HKD', 'IDR', 'INR', 'PHP']
+
+                    for coin in coinsArray:
+                        # greater than 1 ensures we don't split from the coin we want
+                        if title.find(coin) > 1:
+                            index = title.find(coin)
+                            mCoin = title[0:index]
+                            break
+
+                    mainData.get('results').append({'coin':mCoin.upper(),'pair':title.lower(),'market':market.lower()})
+                    self.menu['Markets'][market].state = -1
+
+                    self.mainUpdate()
+                    # overwrite new data to file
+                    with open(DATA_PATH, 'w') as fl:
+                        json.dump(mainData, fl)
+                    break
+
 
 
 if __name__ == "__main__":
