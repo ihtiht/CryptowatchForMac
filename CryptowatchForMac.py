@@ -1,6 +1,5 @@
 import rumps
 import json
-import re
 import os.path
 import os
 import time
@@ -13,7 +12,7 @@ URL_MARKET = 'https://api.cryptowat.ch/markets'
 
 # path for lastState.json file in app's contents
 this_dir, this_filename = os.path.split(__file__)
-DATA_PATH = os.path.join(this_dir, "data", "lastState.json")
+DATA_PATH = os.path.join(this_dir, "data", "database.json")
 
 # data_file included with build
 if os.path.isfile(DATA_PATH):
@@ -30,19 +29,40 @@ else:
     with open(DATA_PATH, 'w') as fl:
         json.dump(mainData, fl)
 
-# thread to run a function after every interval
-def updateThread(interval, func, *args):
-    stopped = Event()
-    def loop():
-        while not stopped.wait(interval): # the first call is in `interval` secs
-            func(*args)
-    Thread(target=loop).start()
-    return stopped.set
+
+class CryptoBar(rumps.App):
+
+    # class fields to set timers
+    # last update time ensures that user doesn't change menu update time
+    # every few seconds leading to exceeding request allowance
+    MAIN_UPDATE_TIME = 10
+    MENU_UPDATE_TIME = 3600
+
+    main_update_timer = None
+    menu_update_timer = None
+
+    # Overriding rumps setup for initialization
+    def __init__(self, *args, **kwargs):
+        super(CryptoBar, self).__init__(*args, **kwargs)
+
+        self.setTimer()
+        # initalize menu and title
+        self.menuUpdate()
+        self.mainUpdate()
 
 
-class BarApp(rumps.App):
+    # timers setup, to be run after initialization
+    def setTimer(self):
+
+        # set timers
+        self.main_update_timer = rumps.Timer(callback = self.mainUpdate,
+            interval = self.MAIN_UPDATE_TIME).start()
+        self.menu_update_timer = rumps.Timer(callback = self.menuUpdate,
+            interval = self.MENU_UPDATE_TIME).start()
+
 
     # update the titleString with new price
+    # @rumps.timer(10)
     def mainUpdate(self):
 
         titleString = ""
@@ -76,6 +96,7 @@ class BarApp(rumps.App):
 
 
     # update the available markets
+    # @rumps.timer(3600)
     def menuUpdate(self):
 
         # will store markets and corresponding pairs for market
@@ -154,16 +175,51 @@ class BarApp(rumps.App):
 
     # menu setup on update
     def setMenu(self, menuArray):
-        self.menu.clear()
+        if self.menu.has_key('Markets'):
+            del self.menu['Markets']
+
+        # to quit application
+        if not self.menu.has_key('Quit'):
+            self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
+            self.menu.insert_before('Quit', None)
+
+        # initalize preferences
+        if not self.menu.has_key('Preferences...'):
+            self.menu.insert_before('Quit', rumps.MenuItem('Preferences...'))
+            self.menu.insert_after('Preferences...', None)
+            self.setPreferences()
 
         # markets submenu setup
-        self.menu.add(rumps.MenuItem('Markets'))
+        self.menu.insert_before('Preferences...', rumps.MenuItem('Markets'))
         self.menu['Markets'].update(menuArray)
         self.menu.insert_after('Markets', None)
 
-        # to quit application
-        self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
 
+    # setup preferences menu and initalize timers
+    def setPreferences(self):
+
+        # make menu items for a list of times and add them to the menu
+        # changing times here won't affect the original times, will have to
+        # redifine in callbacks too
+        mainUpdateTimes = [rumps.MenuItem(time, callback = self.onMainTimeClick)
+        for time in ['5 sec', '10 sec', '30 sec', '60 sec']]
+        menuUpdateTimes = [rumps.MenuItem(time, callback = self.onMenuTimeClick)
+        for time in ['30 min', '1 hour', '2 hours', 'on startup only']]
+
+        self.menu.insert_after('Preferences...', rumps.MenuItem('Price update time'))
+        self.menu['Price update time'].update(mainUpdateTimes)
+
+        self.menu.insert_after('Price update time', rumps.MenuItem('Menu update time'))
+        self.menu['Menu update time'].update(menuUpdateTimes)
+
+
+    # change Main time update in config file and in the script
+    def onMainTimeClick(self, sender):
+        print 'Click'
+
+    # change Menu time update in config file and in the script
+    def onMenuTimeClick(self, sender):
+        print 'Click'
 
     # reset states on menu update
     def resetStates(self):
@@ -204,7 +260,7 @@ class BarApp(rumps.App):
         self.menu['Markets'][removedMarket].state = 0
 
         for pair in self.menu['Markets'][removedMarket].viewkeys():
-            if (self.menu['Markets'][removedMarket][pair].state == 1):
+            if self.menu['Markets'][removedMarket][pair].state == 1:
                 self.menu['Markets'][removedMarket].state = -1
                 break
 
@@ -259,18 +315,5 @@ class BarApp(rumps.App):
 
 if __name__ == "__main__":
 
-    # app setup and initialization
-    menuArray = []
-
-    app = BarApp('Cryptowatch', quit_button = None)
-    app.menuUpdate()
-    app.mainUpdate()
-
-    # run update thread for titleString update (every 10 sec)
-    # and menuUpdate (every hour). The menu doesn't need to be updated
-    # that often since markets and pairs are added/removed very infrequently
-    updateThread(10, app.mainUpdate)
-    updateThread(3600, app.menuUpdate)
-
-    # start app with update threads running in background
-    app.run()
+    # app initialization
+    app = CryptoBar('Cryptowatch', quit_button = None).run()

@@ -56,3 +56,7 @@ target/
 
 # DS_Store
 .DS_Store
+
+# source code package
+.zip
+.tar.gz
