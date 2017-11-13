@@ -16,7 +16,7 @@ OPTIONS = {
         'CFBundleShortVersionString': "0.3",
         'NSHumanReadableCopyright': u"Copyright \u00a9, 2017, Danish Dua"
     },
-    'packages': ['rumps'],
+    'packages': ['rumps', 'CryptoBar'],
 }
 
 setup(
