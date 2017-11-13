@@ -24,4 +24,8 @@ setup(
     data_files=DATA_FILES,
     options={'py2app': OPTIONS},
     setup_requires=['py2app'],
+    url='http://github.com/dandua98/CryptowatchForMac',
+    author='Danish Dua',
+    author_email='danishdua1998@gmail.com',
+    license='MIT',
 )
