@@ -1,7 +1,5 @@
 import rumps
 import time
-import os.path
-import sys
 import requests
 from urllib2 import Request, urlopen, URLError
 import json
@@ -13,9 +11,7 @@ URL_MARKET = 'https://api.cryptowat.ch/markets'
 
 class CryptoBar(rumps.App):
 
-    # class fields to set timers
-    # last update time ensures that user doesn't change menu update time
-    # every few seconds leading to exceeded request allowance
+    # timer needs to be available across class to set/reset
     main_update_time = 10
     menu_update_time = 3600
 
@@ -25,21 +21,16 @@ class CryptoBar(rumps.App):
     # main data to store selected cryptos
     main_data = None
 
-    # data path to database.json
-    root_dir = os.path.dirname(sys.modules['__main__'].__file__)
-    data_path = os.path.join(root_dir, "data", "database.json")
-
 
     # Overriding rumps setup for initialization
     def __init__(self, *args, **kwargs):
         super(CryptoBar, self).__init__(*args, **kwargs)
 
-        self.main_data = db.getMainData(self.data_path)
+        self.main_data = db.getCoinData()
         self.setTimer()
         # initalize menu and title
         self.menuUpdate()
         self.mainUpdate()
-
 
     # timers setup, to be run after initialization
     def setTimer(self):
@@ -48,7 +39,6 @@ class CryptoBar(rumps.App):
             interval = self.main_update_time).start()
         self.menu_update_timer = rumps.Timer(callback = self.menuUpdate,
             interval = self.menu_update_time).start()
-
 
     # update the titleString with new price
     def mainUpdate(self):
@@ -80,7 +70,6 @@ class CryptoBar(rumps.App):
                 print 'Error code:', e
 
         self.title = titleString
-
 
     # update the available markets
     def menuUpdate(self):
@@ -157,7 +146,6 @@ class CryptoBar(rumps.App):
         else:
             self.addData(sender.title)
 
-
     # menu setup on update
     def setMenu(self, menuArray):
         if self.menu.has_key('Markets'):
@@ -179,7 +167,6 @@ class CryptoBar(rumps.App):
         self.menu['Markets'].update(menuArray)
         self.menu.insert_after('Markets', None)
 
-
     # setup preferences menu and initalize timers
     def setPreferences(self):
         # make menu items for a list of times and add them to the menu
@@ -196,16 +183,13 @@ class CryptoBar(rumps.App):
         self.menu.insert_after('Price update time', rumps.MenuItem('Menu update time'))
         self.menu['Menu update time'].update(menuUpdateTimes)
 
-
     # change Main time update in config file and in the script
     def onMainTimeClick(self, sender):
         print 'Click'
 
-
     # change Menu time update in config file and in the script
     def onMenuTimeClick(self, sender):
         print 'Click'
-
 
     # reset states on menu update
     def resetStates(self):
@@ -221,7 +205,6 @@ class CryptoBar(rumps.App):
             # basically checking what coins are selcted and setting them to on
             self.menu['Markets'][market.title()][pair.upper()].state = 1
             self.menu['Markets'][market.title()].state = -1
-
 
     # remove an item from database
     def removeData(self, title):
@@ -251,8 +234,7 @@ class CryptoBar(rumps.App):
                 break
 
         # overwrite new data to file
-        db.writeToFile(self.data_path, self.main_data)
-
+        db.writeToFile(self.main_data)
 
     # add an item to database
     def addData(self, title):
@@ -291,5 +273,5 @@ class CryptoBar(rumps.App):
                     self.menu['Markets'][market].state = -1
 
                     self.mainUpdate()
-                    db.writeToFile(self.data_path, self.main_data)
+                    db.writeToFile(self.main_data)
                     break
