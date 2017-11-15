@@ -5,6 +5,7 @@ import json
 # data path to database.json
 root_dir = os.path.dirname(sys.modules['__main__'].__file__)
 data_path = os.path.join(root_dir, "data", "database.json")
+menu_path = os.path.join(root_dir, "data", "menu.json")
 
 # to get data from json database file
 def getCoinData():
@@ -25,7 +26,13 @@ def getCoinData():
         return data
 
 # write data to json database file
-def writeToFile(data):
+def writeToData(data):
     # overwrite new data to file
     with open(data_path, 'w') as fl:
+        json.dump(data, fl)
+
+# write data to menu file
+def writeToMenu(data):
+    # overwrite new data to file
+    with open(menu_path, 'w') as fl:
         json.dump(data, fl)

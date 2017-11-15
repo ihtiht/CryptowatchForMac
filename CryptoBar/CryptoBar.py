@@ -4,6 +4,7 @@ import requests
 from urllib2 import Request, urlopen, URLError
 import json
 from . import database as db
+from . import config
 
 # Cryptowatch API links
 URL_MARKET = 'https://api.cryptowat.ch/markets'
@@ -18,6 +19,8 @@ class CryptoBar(rumps.App):
     main_update_timer = None
     menu_update_timer = None
 
+    last_update_time = None
+
     # main data to store selected cryptos
     main_data = None
 
@@ -27,6 +30,8 @@ class CryptoBar(rumps.App):
         super(CryptoBar, self).__init__(*args, **kwargs)
 
         self.main_data = db.getCoinData()
+        self.setConfig()
+
         self.setTimer()
         # initalize menu and title
         self.menuUpdate()
@@ -39,6 +44,13 @@ class CryptoBar(rumps.App):
             interval = self.main_update_time).start()
         self.menu_update_timer = rumps.Timer(callback = self.menuUpdate,
             interval = self.menu_update_time).start()
+
+    # set global timer variables from configuration
+    def setConfig(self):
+        # get config information from config.py
+        self.main_update_time = int(config.getConfigData('TIMERS', 'main_update_time'))
+        self.menu_update_time = int(config.getConfigData('TIMERS', 'menu_update_time'))
+        self.last_update_time = config.getConfigData('TIMERS', 'last_update_time')
 
     # update the titleString with new price
     def mainUpdate(self):
@@ -135,6 +147,7 @@ class CryptoBar(rumps.App):
 
         # check for current values and update list accordingly
         self.setMenu(menuArray)
+        db.writeToMenu(marketDictionary)
         # set states of selected coins on update as on
         self.resetStates()
 
@@ -234,7 +247,7 @@ class CryptoBar(rumps.App):
                 break
 
         # overwrite new data to file
-        db.writeToFile(self.main_data)
+        db.writeToData(self.main_data)
 
     # add an item to database
     def addData(self, title):
@@ -273,5 +286,5 @@ class CryptoBar(rumps.App):
                     self.menu['Markets'][market].state = -1
 
                     self.mainUpdate()
-                    db.writeToFile(self.main_data)
+                    db.writeToData(self.main_data)
                     break
