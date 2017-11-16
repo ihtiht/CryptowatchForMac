@@ -15,8 +15,14 @@ def getConfigData(section, var):
 
 # write data to configuration file
 def writeToFile(section, var, data):
-    with open(data_path, 'r') as fl:
-        # data contains which coins are actually selected
-        data = json.load(fl)
-    del data[section][var]
-    data.get(section).append({var : data})
+    with open(data_path, 'r+') as fl:
+        # read and store data
+        jsonData = json.load(fl)
+        del jsonData[section][var]
+        jsonData[section][var] = data
+        fl.close()
+        
+    # to write data
+    with open(data_path, 'w') as fl:
+        json.dump(jsonData, fl)
+        fl.close()

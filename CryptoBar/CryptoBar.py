@@ -9,12 +9,20 @@ from . import config
 # Cryptowatch API links
 URL_MARKET = 'https://api.cryptowat.ch/markets'
 
+# TODO:
+# sort timers
+# working menu update
+# last time update to limit market info requests
+# multiple coins
+# formatting for coins displayed in scientific notation
+# network handler class to handle network exceptions
+# release ;)
 
 class CryptoBar(rumps.App):
 
     # timer needs to be available across class to set/reset
-    main_update_time = 10
-    menu_update_time = 3600
+    main_update_time = None
+    menu_update_time = None
 
     main_update_timer = None
     menu_update_timer = None
@@ -32,18 +40,22 @@ class CryptoBar(rumps.App):
         self.main_data = db.getCoinData()
         self.setConfig()
 
-        self.setTimer()
         # initalize menu and title
         self.menuUpdate()
         self.mainUpdate()
 
+        self.setTimer()
+
     # timers setup, to be run after initialization
     def setTimer(self):
         # set timers
-        self.main_update_timer = rumps.Timer(callback = self.mainUpdate,
-            interval = self.main_update_time).start()
-        self.menu_update_timer = rumps.Timer(callback = self.menuUpdate,
-            interval = self.menu_update_time).start()
+        self.main_update_timer = rumps.Timer(self.mainUpdate,
+            self.main_update_time)
+        self.menu_update_timer = rumps.Timer(self.menuUpdate,
+            self.menu_update_time)
+        self.main_update_timer.start()
+        self.menu_update_timer.start()
+        print(rumps.timers())
 
     # set global timer variables from configuration
     def setConfig(self):
@@ -54,6 +66,7 @@ class CryptoBar(rumps.App):
 
     # update the titleString with new price
     def mainUpdate(self):
+        print 'here'
         titleString = ""
 
         # check every coin in main_data
@@ -67,16 +80,15 @@ class CryptoBar(rumps.App):
                 response = urlopen(URL_MARKET +'/'+ market +'/'+pair+'/'+'summary').read()
                 coinInfo = json.loads(response)
                 coinPrice = coinInfo.get('result').get('price').get('last')
-                coinChange = coinInfo.get('result').get('price').get('change').get('percentage')
+                coinChange = coinInfo.get('result').get('price').get('change').get('percentage')*100
 
-                # to set color changing text later, green if price is greater
-                # than 24h old price by 0.5%, red if lower than old price by -0.5%
-                if (coinChange > 0.5):
-                    titleString += "{} {} ".format(coin, coinPrice)
-                elif (coinChange < -0.5):
-                    titleString += "{} {} ".format(coin, coinPrice)
+                # add up/down arrow depending on percentage change in last 24hr
+                if (coinChange > 1.0):
+                    titleString += u"\u2b06{} {} ".format(coin, coinPrice)
+                elif (coinChange < -1.0):
+                    titleString += u"\u2b07{} {} ".format(coin, coinPrice)
                 else:
-                    titleString += "{} {} ".format(coin, coinPrice)
+                    titleString += u"{} {} ".format(coin, coinPrice)
 
             except URLError, e:
                 print 'Error code:', e
@@ -184,7 +196,7 @@ class CryptoBar(rumps.App):
     def setPreferences(self):
         # make menu items for a list of times and add them to the menu
         # changing times here won't affect the original times, will have to
-        # redifine in callbacks too
+        # redefine in callbacks too
         mainUpdateTimes = [rumps.MenuItem(time, callback = self.onMainTimeClick)
         for time in ['5 sec', '10 sec', '30 sec', '60 sec']]
         menuUpdateTimes = [rumps.MenuItem(time, callback = self.onMenuTimeClick)
@@ -196,13 +208,30 @@ class CryptoBar(rumps.App):
         self.menu.insert_after('Price update time', rumps.MenuItem('Menu update time'))
         self.menu['Menu update time'].update(menuUpdateTimes)
 
+        self.menu['Price update time'][self.main_update_time.__str__() + ' sec'].state = 1
+
+        if self.menu_update_time == 1800:
+            self.menu['Menu update time']['30 min'].state = 1
+        elif self.menu_update_time == 3600:
+            self.menu['Menu update time']['1 hour'].state = 1
+        elif self.menu_update_time == 7200:
+            self.menu['Menu update time']['2 hours'].state = 1
+        else:
+            self.menu['Menu update time']['on startup only'] = 1
+
     # change Main time update in config file and in the script
     def onMainTimeClick(self, sender):
-        print 'Click'
+        # set states to 0, then set senders state to 1
+        for key in self.menu['Price update time'].viewkeys():
+            self.menu['Price update time'][key].state = 0
+
+        self.menu['Price update time'][sender.title].state = 1
+        config.writeToFile('TIMERS', 'main_update_time', sender.title.split()[0])
+        self.main_update_timer.interval = sender.title.split()[0]
 
     # change Menu time update in config file and in the script
     def onMenuTimeClick(self, sender):
-        print 'Click'
+        print "click"
 
     # reset states on menu update
     def resetStates(self):
