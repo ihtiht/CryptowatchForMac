@@ -1,8 +1,23 @@
 import rumps
 import time
-import requests
-from urllib2 import Request, urlopen, URLError
+import sys
+import ssl
+
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib2 import urlopen
+
+try:
+    from urllib.error import URLError as urlerror
+except ImportError:
+    from urllib2 import URLError as urlerror
+
 import json
+# try:
+#     from .database import *
+#     from .config import *
+# except ImportError:
 from . import database as db
 from . import config
 
@@ -16,6 +31,7 @@ URL_MARKET = 'https://api.cryptowat.ch/markets'
 # multiple coins
 # formatting for coins displayed in scientific notation
 # network handler class to handle network exceptions
+# python 3 support, waiting for changes to util.py for ListDict to be pushed
 # release ;)
 
 class CryptoBar(rumps.App):
@@ -66,7 +82,6 @@ class CryptoBar(rumps.App):
 
     # update the titleString with new price
     def mainUpdate(self):
-        print 'here'
         titleString = ""
 
         # check every coin in main_data
@@ -77,21 +92,14 @@ class CryptoBar(rumps.App):
             pair = coinData.get('pair')
 
             try:
+                ssl._create_default_https_context = ssl._create_unverified_context
                 response = urlopen(URL_MARKET +'/'+ market +'/'+pair+'/'+'summary').read()
                 coinInfo = json.loads(response)
                 coinPrice = coinInfo.get('result').get('price').get('last')
-                coinChange = coinInfo.get('result').get('price').get('change').get('percentage')*100
+                titleString += "{} {} ".format(coin, coinPrice)
 
-                # add up/down arrow depending on percentage change in last 24hr
-                if (coinChange > 1.0):
-                    titleString += u"\u2b06{} {} ".format(coin, coinPrice)
-                elif (coinChange < -1.0):
-                    titleString += u"\u2b07{} {} ".format(coin, coinPrice)
-                else:
-                    titleString += u"{} {} ".format(coin, coinPrice)
-
-            except URLError, e:
-                print 'Error code:', e
+            except urlerror as e:
+                print ('Error code:', e)
 
         self.title = titleString
 
@@ -102,6 +110,7 @@ class CryptoBar(rumps.App):
 
         try:
             # get all markets and pairs from the API
+            ssl._create_default_https_context = ssl._create_unverified_context
             respone = urlopen(URL_MARKET).read()
             marketInfo = json.loads(respone)
 
@@ -115,7 +124,7 @@ class CryptoBar(rumps.App):
 
                 # if the exchange is not already in the dictionary, add
                 # it and set value to an empty array; sort last exchange's pairs
-                if not marketDictionary.has_key(marketExchange):
+                if not marketExchange in marketDictionary :
                     marketDictionary[marketExchange] = []
                     marketDictionary.get(lastExchange).sort()
 
@@ -129,12 +138,12 @@ class CryptoBar(rumps.App):
 
             marketDictionary.get(lastExchange).sort()
 
-        except URLError, e:
-            print 'Error code:', e
+        except urlerror as e:
+            print ('Error code:', e)
 
         # sorted market List
         marketKeyList = marketDictionary.keys()
-        marketKeyList.sort()
+        marketKeyList = sorted(marketKeyList)
 
         # menuArray stores the final arrays,
         menuArray = []
@@ -173,24 +182,25 @@ class CryptoBar(rumps.App):
 
     # menu setup on update
     def setMenu(self, menuArray):
-        if self.menu.has_key('Markets'):
-            del self.menu['Markets']
-
-        # to quit application
-        if not self.menu.has_key('Quit'):
-            self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
-            self.menu.insert_before('Quit', None)
+        # markets submenu setup
+        if 'Markets' in self.menu:
+            self.menu['Markets'].clear()
+            self.menu['Markets'].update(menuArray)
+        else:
+            self.menu.add(rumps.MenuItem('Markets'))
+            self.menu['Markets'].update(menuArray)
+            self.menu.add(None)
 
         # initalize preferences
-        if not self.menu.has_key('Preferences...'):
-            self.menu.insert_before('Quit', rumps.MenuItem('Preferences...'))
-            self.menu.insert_after('Preferences...', None)
+        if not 'Preferences...' in self.menu:
+            self.menu.add(rumps.MenuItem('Preferences...'))
             self.setPreferences()
+            self.menu.add(None)
 
-        # markets submenu setup
-        self.menu.insert_before('Preferences...', rumps.MenuItem('Markets'))
-        self.menu['Markets'].update(menuArray)
-        self.menu.insert_after('Markets', None)
+        # to quit application
+        if not 'Quit' in self.menu:
+            self.menu.add(None)
+            self.menu.add(rumps.MenuItem('Quit', callback = rumps.quit_application))
 
     # setup preferences menu and initalize timers
     def setPreferences(self):
@@ -202,10 +212,10 @@ class CryptoBar(rumps.App):
         menuUpdateTimes = [rumps.MenuItem(time, callback = self.onMenuTimeClick)
         for time in ['30 min', '1 hour', '2 hours', 'on startup only']]
 
-        self.menu.insert_after('Preferences...', rumps.MenuItem('Price update time'))
+        self.menu.add(rumps.MenuItem('Price update time'))
         self.menu['Price update time'].update(mainUpdateTimes)
 
-        self.menu.insert_after('Price update time', rumps.MenuItem('Menu update time'))
+        self.menu.add(rumps.MenuItem('Menu update time'))
         self.menu['Menu update time'].update(menuUpdateTimes)
 
         self.menu['Price update time'][self.main_update_time.__str__() + ' sec'].state = 1
@@ -222,7 +232,7 @@ class CryptoBar(rumps.App):
     # change Main time update in config file and in the script
     def onMainTimeClick(self, sender):
         # set states to 0, then set senders state to 1
-        for key in self.menu['Price update time'].viewkeys():
+        for key in self.menu['Price update time']:
             self.menu['Price update time'][key].state = 0
 
         self.menu['Price update time'][sender.title].state = 1
@@ -231,7 +241,7 @@ class CryptoBar(rumps.App):
 
     # change Menu time update in config file and in the script
     def onMenuTimeClick(self, sender):
-        print "click"
+        print ('click')
 
     # reset states on menu update
     def resetStates(self):
@@ -252,11 +262,12 @@ class CryptoBar(rumps.App):
     def removeData(self, title):
         # iterate over main data and check if state for a pair with title
         # sender is now 0
-        for i in xrange(len(self.main_data.get('results'))):
-
+        # to keep count, makes removing element easier
+        i = 0;
+        for coinData in self.main_data.get('results'):
             # get pair and check for title and state 0
-            pair = self.main_data.get('results')[i].get('pair')
-            market = self.main_data.get('results')[i].get('market')
+            pair = coinData.get('pair')
+            market = coinData.get('market')
 
             # delete from main_data if conditions are met
             if ((pair.upper() == title) and
@@ -264,13 +275,15 @@ class CryptoBar(rumps.App):
                 del self.main_data.get('results')[i]
                 removedMarket = market.title()
                 break
+            else:
+                i += 1
 
         self.mainUpdate()
         # check if the market from which the pair was removed still has a
         # pair to put a marker
         self.menu['Markets'][removedMarket].state = 0
 
-        for pair in self.menu['Markets'][removedMarket].viewkeys():
+        for pair in self.menu['Markets'][removedMarket]:
             if self.menu['Markets'][removedMarket][pair].state == 1:
                 self.menu['Markets'][removedMarket].state = -1
                 break
@@ -282,18 +295,18 @@ class CryptoBar(rumps.App):
     def addData(self, title):
         # iterate over markets and check if they have the pairs
         # if true, check if the pair for the market is already in database
-        for market in self.menu['Markets'].viewkeys():
+        for market in self.menu['Markets']:
             # to keep check if it was in data or not
             check = False
 
-            if (self.menu['Markets'][market].has_key(title) and self.menu['Markets'][market][title].state == 1):
+            if (title in self.menu['Markets'][market] and self.menu['Markets'][market][title].state == 1):
 
-                for i in xrange(len(self.main_data.get('results'))):
+                for coinData in self.main_data.get('results'):
                     # get pair and check if it's same
-                    checkPair = self.main_data.get('results')[i].get('pair')
-                    checkMarket = self.main_data.get('results')[i].get('market')
+                    checkPair = coinData.get('pair')
+                    checkMarket = coinData.get('market')
 
-                    if (checkMarket == market and checkPair == title):
+                    if (checkMarket.title() == market and checkPair.upper() == title):
                         check = True
                         break
 

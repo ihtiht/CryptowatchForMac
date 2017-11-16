@@ -1,1 +1,4 @@
-from CryptoBar import CryptoBar
+try:
+    from cryptoBar.cryptoBar import CryptoBar
+except ImportError:
+    from cryptoBar import CryptoBar
