@@ -14,7 +14,7 @@ def getConfigData(section, var):
          return data.get(section).get(var)
 
 # write data to configuration file
-def writeToFile(section, var, data):
+def writeFile(section, var, data):
      with open(data_path, 'r+') as fl:
          # read and store data
          jsonData = json.load(fl)

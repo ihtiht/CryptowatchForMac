@@ -1,5 +1,5 @@
 import rumps
-import time
+import threading, time
 import sys
 import ssl
 
@@ -31,61 +31,35 @@ URL_MARKET = 'https://api.cryptowat.ch/markets'
 
 class CryptoBar(rumps.App):
 
-     # timer needs to be available across class to set/reset
-     main_update_time = None
-     menu_update_time = None
-
-     main_update_timer = None
-     menu_update_timer = None
-
-     last_update_time = None
-
-     # main data to store selected cryptos
-     main_data = None
-
-
      # Overriding rumps setup for initialization
      def __init__(self, *args, **kwargs):
          super(CryptoBar, self).__init__(*args, **kwargs)
 
-         self.main_data = db.getCoinData()
+         # userc_data is the user coin data cached in json database
+         self.userc_data = db.getCoinData()
          self.setConfig()
-
          # initalize menu and title
-         self.menuUpdate()
-         self.mainUpdate()
-
-         self.setTimer()
-
-     # timers setup, to be run after initialization
-     def setTimer(self):
-         # set timers
-         self.main_update_timer = rumps.Timer(self.mainUpdate,
-             self.main_update_time)
-         self.menu_update_timer = rumps.Timer(self.menuUpdate,
-             self.menu_update_time)
-         self.main_update_timer.start()
-         self.menu_update_timer.start()
-         print(rumps.timers())
+         self.marketsUpdate()
+         self.titleUpdate()
 
      # set global timer variables from configuration
      def setConfig(self):
          # get config information from config.py
-         self.main_update_time = int(config.getConfigData('TIMERS', 'main_update_time'))
-         self.menu_update_time = int(config.getConfigData('TIMERS', 'menu_update_time'))
+         self.title_update_time = int(config.getConfigData('TIMERS', 'title_update_time'))
+         self.markets_update_time = int(config.getConfigData('TIMERS', 'markets_update_time'))
          self.last_update_time = config.getConfigData('TIMERS', 'last_update_time')
 
      # update the titleString with new price
-     def mainUpdate(self):
+     def titleUpdate(self):
+         print('update')
          titleString = ""
 
-         # check every coin in main_data
-         for coinData in self.main_data.get('results'):
+         # check every coin in userc_data
+         for coinData in self.userc_data.get('results'):
 
              coin = coinData.get('coin')
              market = coinData.get('market')
              pair = coinData.get('pair')
-
              try:
                  ssl._create_default_https_context = ssl._create_unverified_context
                  response = urlopen(URL_MARKET +'/'+ market +'/'+pair+'/'+'summary').read()
@@ -97,9 +71,10 @@ class CryptoBar(rumps.App):
                  print ('Error code:', e)
 
          self.title = titleString
+         threading.Timer(self.title_update_time, self.titleUpdate).start()
 
      # update the available markets
-     def menuUpdate(self):
+     def marketsUpdate(self):
          # will store markets and corresponding pairs for market
          marketDictionary = {}
 
@@ -140,16 +115,16 @@ class CryptoBar(rumps.App):
          marketKeyList = marketDictionary.keys()
          marketKeyList = sorted(marketKeyList)
 
-         # menuArray stores the final arrays,
-         menuArray = []
+         # marketsArray stores the final arrays,
+         marketsArray = []
 
          # iterate over the exchanges and add an exchange menu item
          for key in marketKeyList:
              # initalize temporary arrays to store the Menu Items
-             subMenuArray = []
+             subMarketsArray = []
              subPairArray = []
 
-             subMenuArray.append(rumps.MenuItem(key.title()))
+             subMarketsArray.append(rumps.MenuItem(key.title()))
 
              # iterate over pairs and add pairs in exchange submenu
              for pair in marketDictionary.get(key):
@@ -158,14 +133,16 @@ class CryptoBar(rumps.App):
 
              # add the exchange (key) and corresponding submenu
              # to the main menu
-             subMenuArray.append(subPairArray)
-             menuArray.append(subMenuArray)
+             subMarketsArray.append(subPairArray)
+             marketsArray.append(subMarketsArray)
 
          # check for current values and update list accordingly
-         self.setMenu(menuArray)
-         db.writeToMenu(marketDictionary)
+         self.setMenu(marketsArray)
+         db.writeMarkets(marketDictionary)
          # set states of selected coins on update as on
          self.resetStates()
+         # markets_t = threading.Timer(self.markets_update_time, self.marketsUpdate)
+         # markets_t.start()
 
      # if a pair item is clicked
      def onPairClick(self, sender):
@@ -176,14 +153,14 @@ class CryptoBar(rumps.App):
              self.addData(sender.title)
 
      # menu setup on update
-     def setMenu(self, menuArray):
+     def setMenu(self, marketsArray):
          # markets submenu setup
          if 'Markets' in self.menu:
              self.menu['Markets'].clear()
-             self.menu['Markets'].update(menuArray)
+             self.menu['Markets'].update(marketsArray)
          else:
              self.menu.add(rumps.MenuItem('Markets'))
-             self.menu['Markets'].update(menuArray)
+             self.menu['Markets'].update(marketsArray)
              self.menu.add(None)
 
          # initalize preferences
@@ -202,47 +179,47 @@ class CryptoBar(rumps.App):
          # make menu items for a list of times and add them to the menu
          # changing times here won't affect the original times, will have to
          # redefine in callbacks too
-         mainUpdateTimes = [rumps.MenuItem(time, callback = self.onMainTimeClick)
+         titleUpdateTimes = [rumps.MenuItem(time, callback = self.onTitleTimeClick)
          for time in ['5 sec', '10 sec', '30 sec', '60 sec']]
-         menuUpdateTimes = [rumps.MenuItem(time, callback = self.onMenuTimeClick)
+         marketsUpdateTimes = [rumps.MenuItem(time, callback = self.onMarketsTimeClick)
          for time in ['30 min', '1 hour', '2 hours', 'on startup only']]
 
          self.menu.add(rumps.MenuItem('Price update time'))
-         self.menu['Price update time'].update(mainUpdateTimes)
+         self.menu['Price update time'].update(titleUpdateTimes)
 
-         self.menu.add(rumps.MenuItem('Menu update time'))
-         self.menu['Menu update time'].update(menuUpdateTimes)
+         self.menu.add(rumps.MenuItem('Markets update time'))
+         self.menu['Markets update time'].update(marketsUpdateTimes)
 
-         self.menu['Price update time'][self.main_update_time.__str__() + ' sec'].state = 1
+         self.menu['Price update time'][self.title_update_time.__str__() + ' sec'].state = 1
 
-         if self.menu_update_time == 1800:
-             self.menu['Menu update time']['30 min'].state = 1
-         elif self.menu_update_time == 3600:
-             self.menu['Menu update time']['1 hour'].state = 1
-         elif self.menu_update_time == 7200:
-             self.menu['Menu update time']['2 hours'].state = 1
+         if self.markets_update_time == 1800:
+             self.menu['Markets update time']['30 min'].state = 1
+         elif self.markets_update_time == 3600:
+             self.menu['Markets update time']['1 hour'].state = 1
+         elif self.markets_update_time == 7200:
+             self.menu['Markets update time']['2 hours'].state = 1
          else:
-             self.menu['Menu update time']['on startup only'] = 1
+             self.menu['Markets update time']['on startup only'] = 1
 
      # change Main time update in config file and in the script
-     def onMainTimeClick(self, sender):
+     def onTitleTimeClick(self, sender):
          # set states to 0, then set senders state to 1
          for key in self.menu['Price update time']:
              self.menu['Price update time'][key].state = 0
 
          self.menu['Price update time'][sender.title].state = 1
-         config.writeToFile('TIMERS', 'main_update_time', sender.title.split()[0])
-         self.main_update_timer.interval = sender.title.split()[0]
+         config.writeFile('TIMERS', 'title_update_time', sender.title.split()[0])
+         self.title_update_timer.interval = sender.title.split()[0]
 
-     # change Menu time update in config file and in the script
-     def onMenuTimeClick(self, sender):
+     # change Markets menu time update in config file and in the script
+     def onMarketsTimeClick(self, sender):
          print ('click')
 
      # reset states on menu update
      def resetStates(self):
-         # main_data is available across application
-         # check every coin in main_data
-         for coinData in self.main_data.get('results'):
+         # userc_data is available across application
+         # check every coin in userc_data
+         for coinData in self.userc_data.get('results'):
 
              coin = coinData.get('coin')
              market = coinData.get('market')
@@ -259,21 +236,21 @@ class CryptoBar(rumps.App):
          # sender is now 0
          # to keep count, makes removing element easier
          i = 0;
-         for coinData in self.main_data.get('results'):
+         for coinData in self.userc_data.get('results'):
              # get pair and check for title and state 0
              pair = coinData.get('pair')
              market = coinData.get('market')
 
-             # delete from main_data if conditions are met
+             # delete from userc_data if conditions are met
              if ((pair.upper() == title) and
                  (self.menu['Markets'][market.title()][pair.upper()].state == 0)):
-                 del self.main_data.get('results')[i]
+                 del self.userc_data.get('results')[i]
                  removedMarket = market.title()
                  break
              else:
                  i += 1
 
-         self.mainUpdate()
+         self.titleUpdate()
          # check if the market from which the pair was removed still has a
          # pair to put a marker
          self.menu['Markets'][removedMarket].state = 0
@@ -284,7 +261,7 @@ class CryptoBar(rumps.App):
                  break
 
          # overwrite new data to file
-         db.writeToData(self.main_data)
+         db.writeData(self.userc_data)
 
      # add an item to database
      def addData(self, title):
@@ -296,7 +273,7 @@ class CryptoBar(rumps.App):
 
              if (title in self.menu['Markets'][market] and self.menu['Markets'][market][title].state == 1):
 
-                 for coinData in self.main_data.get('results'):
+                 for coinData in self.userc_data.get('results'):
                      # get pair and check if it's same
                      checkPair = coinData.get('pair')
                      checkMarket = coinData.get('market')
@@ -308,9 +285,10 @@ class CryptoBar(rumps.App):
                  # if no match was found
                  if (check == False):
                      # to seperate the coin we want vs what it's compared against
+                     # is hard coded so if new coins are added, will need to add
                      coinsArray = ['USD', 'USDT', 'BTC', 'ETH', 'JPY', 'KRW', '',
                          'AUD', 'EUR', 'CNY', 'RUR', 'GBP', 'CAD', 'ZAR', 'MEX',
-                         'XMR', 'SGD', 'HKD', 'IDR', 'INR', 'PHP']
+                         'MXN', 'XMR', 'SGD', 'HKD', 'IDR', 'INR', 'PHP']
 
                      for coin in coinsArray:
                          # greater than 1 ensures we don't split from the coin we want
@@ -319,9 +297,9 @@ class CryptoBar(rumps.App):
                              mCoin = title[0:index]
                              break
 
-                     self.main_data.get('results').append({'coin':mCoin.upper(),'pair':title.lower(),'market':market.lower()})
+                     self.userc_data.get('results').append({'coin':mCoin.upper(),'pair':title.lower(),'market':market.lower()})
                      self.menu['Markets'][market].state = 1
 
-                     self.mainUpdate()
-                     db.writeToData(self.main_data)
+                     self.titleUpdate()
+                     db.writeData(self.userc_data)
                      break

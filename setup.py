@@ -2,7 +2,7 @@ from setuptools import setup
 
 APP = ['CryptowatchForMac.py']
 APP_NAME = "Cryptowatch For Mac"
-DATA_FILES = [('', ['data'])]
+DATA_FILES = [('', ['data', 'configuration'])]
 OPTIONS = {
     'argv_emulation': True,
     'iconfile': 'icons/app.icns',
@@ -16,7 +16,7 @@ OPTIONS = {
         'CFBundleShortVersionString': "0.3",
         'NSHumanReadableCopyright': u"Copyright \u00a9, 2017, Danish Dua"
     },
-    'packages': ['rumps', 'CryptoBar'],
+    'packages': ['rumps', 'cryptoBar'],
 }
 
 setup(

@@ -1,3 +1,2 @@
 rumps
 py2app
-requests
