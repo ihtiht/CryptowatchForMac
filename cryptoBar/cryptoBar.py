@@ -13,6 +13,8 @@ try:
 except ImportError:
     from urllib2 import URLError as urlerror
 
+from httplib import BadStatusLine
+
 import json
 from . import database as db
 from . import config
@@ -25,7 +27,6 @@ URL_MARKET = 'https://api.cryptowat.ch/markets'
 # working menu update
 # last time update to limit market info requests
 # multiple coins
-# formatting for coins displayed in scientific notation
 # network handler class to handle network exceptions
 # release ;)
 
@@ -51,7 +52,6 @@ class CryptoBar(rumps.App):
 
      # update the titleString with new price
      def titleUpdate(self):
-         print('update')
          titleString = ""
 
          # check every coin in userc_data
@@ -67,11 +67,13 @@ class CryptoBar(rumps.App):
                  coinPrice = coinInfo.get('result').get('price').get('last')
                  titleString += "{} {} ".format(coin, coinPrice)
 
-             except urlerror as e:
+             except (urlerror, BadStatusLine) as e:
                  print ('Error code:', e)
 
          self.title = titleString
-         threading.Timer(self.title_update_time, self.titleUpdate).start()
+         global title_t
+         title_t = threading.Timer(self.title_update_time, self.titleUpdate)
+         title_t.start()
 
      # update the available markets
      def marketsUpdate(self):
@@ -141,8 +143,10 @@ class CryptoBar(rumps.App):
          db.writeMarkets(marketDictionary)
          # set states of selected coins on update as on
          self.resetStates()
-         # markets_t = threading.Timer(self.markets_update_time, self.marketsUpdate)
-         # markets_t.start()
+
+         global markets_t
+         markets_t = threading.Timer(self.markets_update_time, self.marketsUpdate)
+         markets_t.start()
 
      # if a pair item is clicked
      def onPairClick(self, sender):
@@ -192,11 +196,11 @@ class CryptoBar(rumps.App):
 
          self.menu['Price update time'][self.title_update_time.__str__() + ' sec'].state = 1
 
-         if self.markets_update_time == 1800:
+         if (self.markets_update_time == 1800):
              self.menu['Markets update time']['30 min'].state = 1
-         elif self.markets_update_time == 3600:
+         elif (self.markets_update_time == 3600):
              self.menu['Markets update time']['1 hour'].state = 1
-         elif self.markets_update_time == 7200:
+         elif (self.markets_update_time == 7200):
              self.menu['Markets update time']['2 hours'].state = 1
          else:
              self.menu['Markets update time']['on startup only'] = 1
@@ -209,11 +213,27 @@ class CryptoBar(rumps.App):
 
          self.menu['Price update time'][sender.title].state = 1
          config.writeFile('TIMERS', 'title_update_time', sender.title.split()[0])
-         self.title_update_timer.interval = sender.title.split()[0]
+         self.title_update_time = int(sender.title.split()[0])
+         title_t.cancel()
+         self.titleUpdate()
 
      # change Markets menu time update in config file and in the script
      def onMarketsTimeClick(self, sender):
-         print ('click')
+         # set states to 0, then set senders state to 1
+         for key in self.menu['Markets update time']:
+             self.menu['Markets update time'][key].state = 0
+
+         self.menu['Markets update time'][sender.title].state = 1
+
+         if (sender.title == '30 min'):
+             self.markets_update_time = 1800
+         elif (sender.title == '1 hour'):
+             sslf.markets_update_time = 3600
+         elif (sender.title == '2 hours'):
+             self.markets_update_time = 7200
+         else:
+             # not actually startup, just set to 1 day
+             self.markets_update_time = 3600*24
 
      # reset states on menu update
      def resetStates(self):
