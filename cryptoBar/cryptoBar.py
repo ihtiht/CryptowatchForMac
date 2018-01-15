@@ -13,7 +13,10 @@ try:
 except ImportError:
     from urllib2 import URLError as urlerror
 
-from httplib import BadStatusLine
+try:
+    from http.client import BadStatusLine
+except:
+    from httplib import BadStatusLine
 
 import json
 from . import database as db
